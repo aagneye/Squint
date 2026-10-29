@@ -7,6 +7,7 @@ import { renderLabels } from './forge/forge.mjs';
 import { degradeAll, CONDITIONS, LEVELS, imagePath } from './degrade/ladder.mjs';
 import { planProbe, estimate, runProbe, MODELS, BASE_MODES } from './probe/probe.mjs';
 import { isMock } from './api/meta.mjs';
+import { loadRecords, buildReport, writeReport } from './report/report.mjs';
 
 const HELP = `Squint: does your vision AI know when it can't read the label?
 
@@ -16,6 +17,8 @@ Commands
   forge      render clean label images            -> out/clean/
   degrade    build the degradation ladder         -> out/images/<id>/<cond>/<level>.jpg
   probe      ask the model(s) to read the images  -> out/raw/ (cached; re-runs never re-bill)
+  report     score every stored answer            -> out/results.json, out/summary.md, out/slider/
+  all        forge + degrade + probe + report
 
 Options
   --labels N|id,id   how many labels (spread across kinds) or exact ids   (default: all)
@@ -26,6 +29,7 @@ Options
   --dry-run          show call count and cost estimate, call nothing
   --yes              do not ask before spending
   --concurrency N    parallel API calls (default 4)
+  --slider id        label shown on the demo slider (default rx_hydralazine; --slider-cond blur)
 
 Environment
   MODEL_API_KEY      your Meta Model API key (never written to disk)
@@ -126,7 +130,26 @@ export async function cmdProbe(sel, flags, modes = sel.modes) {
   return r;
 }
 
-export const COMMANDS = { forge: cmdForge, degrade: cmdDegrade, probe: cmdProbe };
+export async function cmdReport(sel, flags) {
+  const root = runRoot();
+  const records = loadRecords(path.join(root, 'raw'));
+  if (!records.length) throw new Error(`no answers under ${path.join(root, 'raw')}; run probe first`);
+  const rep = buildReport(records, loadLabels(), { sliderId: flags.slider ?? 'rx_hydralazine', sliderCond: flags['slider-cond'] ?? 'blur', imagesRoot: path.join(OUT, 'images') });
+  writeReport(rep, root);
+  console.log(`report: ${records.length} answers -> ${path.join(path.relative(process.cwd(), root), 'results.json')} and summary.md`);
+  for (const h of rep.headline) console.log(`  ${h.model} ${h.mode}: ${(100 * h.correct).toFixed(0)}% correct, ${(100 * h.wrong_confident).toFixed(0)}% confidently wrong, ${(100 * h.unsafe).toFixed(0)}% unsafe answers`);
+  return rep;
+}
+
+export async function cmdAll(sel, flags) {
+  await cmdForge(sel, flags);
+  await cmdDegrade(sel, flags);
+  const r = await cmdProbe(sel, flags);
+  if (flags['dry-run'] || !r.results.length) return r;
+  return cmdReport(sel, flags);
+}
+
+export const COMMANDS = { forge: cmdForge, degrade: cmdDegrade, probe: cmdProbe, report: cmdReport, score: cmdReport, all: cmdAll };
 
 export async function main(argv) {
   const { command, flags } = parseArgs(argv);

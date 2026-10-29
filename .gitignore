@@ -2,6 +2,7 @@
 out/*
 !out/results.json
 !out/summary.md
+!out/slider/
 
 # secrets
 .env

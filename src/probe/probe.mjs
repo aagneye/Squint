@@ -49,9 +49,9 @@ export async function readLabel(job, rawRoot) {
       schemaName: 'label_read',
       schema: READ_SCHEMA,
     });
-    return { answer: r.data, usage: r.usage, ms: r.ms, cost: r.cost, finish: r.finish };
+    return { id: job.id, cond: job.cond, level: job.level, model: job.model, mode: job.mode, seed: job.seed ?? 0, answer: r.data, usage: r.usage, ms: r.ms, cost: r.cost, finish: r.finish };
   });
-  return { id: job.id, cond: job.cond, level: job.level, model: job.model, mode: job.mode, seed: job.seed ?? 0, ...rec };
+  return { ...rec, id: job.id, cond: job.cond, level: job.level, model: job.model, mode: job.mode, seed: job.seed ?? 0 };
 }
 
 export async function runProbe(jobs, rawRoot, { concurrency = 4, onProgress } = {}) {
