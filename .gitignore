@@ -1,0 +1,15 @@
+# generated images, raw model responses, caches (results.json and summary.md are committed at the end)
+out/*
+!out/results.json
+!out/summary.md
+
+# secrets
+.env
+*.key
+
+# the abandoned scribe spike is not part of Squint
+spike/
+
+# editor and OS noise
+.vscode/
+Thumbs.db

@@ -1,0 +1,16 @@
+{
+  "name": "squint",
+  "version": "0.1.0",
+  "description": "Crash-test lab for AI that reads medicine and food labels for blind and low-vision users: finds the point where reading turns into guessing, and ships the fix.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/",
+    "squint": "node src/cli.mjs",
+    "mock": "node src/api/mock.mjs"
+  }
+}
