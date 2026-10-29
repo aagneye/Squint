@@ -35,8 +35,9 @@ function buildIndex(root) {
   if (existsSync(root)) walk(root);
   return map;
 }
+let indexRoot = OUT;
 function lookup(hash) {
-  if (!index || !index.has(hash)) index = buildIndex(OUT);
+  if (!index || !index.has(hash)) index = buildIndex(indexRoot);
   return index.get(hash);
 }
 
@@ -71,7 +72,9 @@ export function mockRead({ label, level, cond, model, seed, guarded, crop }) {
   };
 }
 
-export function startMock(port = 8787) {
+export function startMock(port = 8787, { root = OUT } = {}) {
+  indexRoot = root;
+  index = null;
   const labels = new Map(loadLabels().map((l) => [l.id, l]));
   const server = http.createServer(async (req, res) => {
     const chunks = [];
@@ -92,7 +95,7 @@ export function startMock(port = 8787) {
     if (name === 'ping') out = { ok: true };
     else if (name === 'label_read') {
       if (!where || !labels.has(where.id)) return send(400, { error: 'mock: unknown image (render and degrade first)' });
-      out = mockRead({ label: labels.get(where.id), level: where.level, cond: where.cond, model: body.model, seed, guarded: /GUARD:abstain/.test(text), crop: where.crop });
+      out = mockRead({ label: labels.get(where.id), level: where.level, cond: where.cond, model: body.model, seed, guarded: /Never guess/.test(text), crop: where.crop });
     } else if (name === 'locate') {
       out = { found: true, x0: 60, y0: 220, x1: 960, y1: 560 };
     } else return send(400, { error: `mock: unknown schema ${name}` });
