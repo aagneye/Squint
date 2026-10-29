@@ -54,7 +54,7 @@ export async function readLabel(job, rawRoot) {
   return { ...rec, id: job.id, cond: job.cond, level: job.level, model: job.model, mode: job.mode, seed: job.seed ?? 0 };
 }
 
-export async function runProbe(jobs, rawRoot, { concurrency = 4, onProgress } = {}) {
+export async function runProbe(jobs, rawRoot, { concurrency = 4, onProgress, reader = readLabel } = {}) {
   const out = new Array(jobs.length);
   let next = 0, done = 0;
   const failures = [];
@@ -62,7 +62,7 @@ export async function runProbe(jobs, rawRoot, { concurrency = 4, onProgress } = 
     while (next < jobs.length) {
       const i = next++;
       try {
-        out[i] = await readLabel(jobs[i], rawRoot);
+        out[i] = await reader(jobs[i], rawRoot);
       } catch (e) {
         failures.push({ job: jobs[i], error: e.message });
         if (/HTTP 40[13]/.test(e.message)) throw e; // a bad key will fail every call: stop early

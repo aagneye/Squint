@@ -2,7 +2,8 @@
 // Squint command line.  node src/cli.mjs <command> [options]   (run with --help for the list)
 import path from 'node:path';
 import readline from 'node:readline/promises';
-import { loadLabels, OUT } from './data.mjs';
+import { loadLabels, loadFormulary, OUT } from './data.mjs';
+import { GUARD_MODES, GUARD_CALLS, guardRead } from './guard/guards.mjs';
 import { renderLabels } from './forge/forge.mjs';
 import { degradeAll, CONDITIONS, LEVELS, imagePath } from './degrade/ladder.mjs';
 import { planProbe, estimate, runProbe, MODELS, BASE_MODES } from './probe/probe.mjs';
@@ -25,7 +26,7 @@ Options
   --conds c,c        conditions: ${CONDITIONS.join(', ')}               (default: all)
   --levels 0,3,7     ladder levels 0-7                                    (default: all)
   --models m,m       ${MODELS.join(', ')}  (default: muse-spark-1.3)
-  --modes m,m        ${BASE_MODES.join(', ')}                               (default: baseline)
+  --modes m,m        prompts: ${BASE_MODES.join(', ')}; guards: ${GUARD_MODES.join(', ')}  (default: baseline)
   --dry-run          show call count and cost estimate, call nothing
   --yes              do not ask before spending
   --concurrency N    parallel API calls (default 4)
@@ -108,9 +109,20 @@ export async function cmdDegrade(sel) {
 }
 
 export async function cmdProbe(sel, flags, modes = sel.modes) {
-  const jobs = planProbe({ images: imagesFor(sel), models: sel.models, modes });
+  for (const m of modes) if (!BASE_MODES.includes(m) && !GUARD_MODES.includes(m)) throw new Error(`unknown mode ${m}; choose from ${[...BASE_MODES, ...GUARD_MODES].join(', ')}`);
+  const images = imagesFor(sel);
+  const jobs = planProbe({ images, models: sel.models, modes: modes.filter((m) => BASE_MODES.includes(m)) });
+  const guardJobs = planProbe({ images, models: sel.models, modes: modes.filter((m) => GUARD_MODES.includes(m)) });
   const rawRoot = path.join(runRoot(), 'raw');
   const est = estimate(jobs, rawRoot);
+  // Guards: worst case is every inner call uncached (reused reads make it cheaper in practice).
+  for (const j of guardJobs) {
+    const e = (est[j.model] ??= { calls: 0, uncached: 0, dollars: 0 });
+    const one = estimate([{ ...j, mode: '_guard' }], rawRoot)[j.model];
+    e.calls += GUARD_CALLS[j.mode];
+    e.uncached += GUARD_CALLS[j.mode];
+    e.dollars += one.dollars * GUARD_CALLS[j.mode];
+  }
   let dollars = 0;
   for (const [m, e] of Object.entries(est)) {
     console.log(`  ${m}: ${e.calls} reads, ${e.uncached} not cached, about $${e.dollars.toFixed(2)}`);
@@ -119,11 +131,17 @@ export async function cmdProbe(sel, flags, modes = sel.modes) {
   console.log(`  target: ${isMock() ? 'MOCK API (offline)' : 'Meta Model API'}; estimated new spend $${dollars.toFixed(2)}`);
   if (flags['dry-run']) return { results: [], failures: [] };
   if (dollars > 0 && !isMock() && !flags.yes && !(await confirm('Spend it? (y/N) '))) return { results: [], failures: [] };
-  const r = await runProbe(jobs, rawRoot, {
-    concurrency: Number(flags.concurrency ?? 4),
-    onProgress: (d, n) => { if (d % 25 === 0 || d === n) process.stdout.write(`\r  ${d}/${n} reads`); },
-  });
-  process.stdout.write('\n');
+  const progress = (label) => (d, n) => { if (d % 25 === 0 || d === n) process.stdout.write(`\r  ${label} ${d}/${n}`); };
+  const concurrency = Number(flags.concurrency ?? 4);
+  const r = await runProbe(jobs, rawRoot, { concurrency, onProgress: progress('reads') });
+  if (jobs.length) process.stdout.write('\n');
+  if (guardJobs.length) {
+    const guardOpts = { formulary: loadFormulary(), cropRoot: path.join(runRoot(), 'crops') };
+    const g = await runProbe(guardJobs, rawRoot, { concurrency, onProgress: progress('guarded reads'), reader: (job, root) => guardRead(job, root, guardOpts) });
+    process.stdout.write('\n');
+    r.results.push(...g.results);
+    r.failures.push(...g.failures);
+  }
   const spent = r.results.filter((x) => !x.cached).reduce((s, x) => s + x.cost, 0);
   console.log(`  done: ${r.results.length} answers (${r.results.filter((x) => x.cached).length} from cache), ${r.failures.length} failed, spent $${spent.toFixed(3)}`);
   for (const f of r.failures.slice(0, 5)) console.log(`  FAILED ${f.job.id}/${f.job.cond}/${f.job.level} ${f.job.model}: ${f.error}`);

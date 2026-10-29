@@ -25,8 +25,9 @@ const pct = (x) => `${(100 * x).toFixed(0)}%`;
 
 export function buildReport(records, labels, { sliderId = 'rx_hydralazine', sliderCond = 'blur', imagesRoot } = {}) {
   const byId = new Map(labels.map((l) => [l.id, l]));
-  // A guard mode may combine several reads into one record per image; seeds > 0 are the extra reads.
-  const scored = records.filter((r) => (r.seed ?? 0) === 0);
+  // Guards combine several reads into one record per image. Seeds > 0 and zoom crops are their inner
+  // reads: they are already counted (answer and cost) inside the guard's own record.
+  const scored = records.filter((r) => (r.seed ?? 0) === 0 && !String(r.mode).endsWith('-crop'));
   const rows = aggregate(scored, byId);
   const bounds = boundaries(rows);
   const caution = overCaution(rows);
@@ -43,10 +44,11 @@ export function buildReport(records, labels, { sliderId = 'rx_hydralazine', slid
     };
   });
 
-  const money = Object.values(Object.groupBy(records, (r) => `${r.model}|${r.mode}`)).map((rs) => ({
+  // Cost per mode is what running that mode costs per image, including the reads it reuses.
+  const money = Object.values(Object.groupBy(scored, (r) => `${r.model}|${r.mode}`)).map((rs) => ({
     model: rs[0].model, mode: rs[0].mode, calls: rs.length,
     dollars: rs.reduce((s, r) => s + (r.cost ?? 0), 0),
-    perThousandReads: (1000 * rs.reduce((s, r) => s + (r.cost ?? 0), 0)) / rs.filter((r) => (r.seed ?? 0) === 0).length,
+    perThousandReads: (1000 * rs.reduce((s, r) => s + (r.cost ?? 0), 0)) / rs.length,
     medianMs: [...rs.map((r) => r.ms ?? 0)].sort((a, b) => a - b)[Math.floor(rs.length / 2)],
   }));
 
@@ -82,7 +84,7 @@ export function summaryMarkdown(rep) {
     L.push(`| ${g[0].model} | ${g[0].mode} | ${conds.map((c) => g.find((b) => b.cond === c)?.boundary ?? '-').join(' | ')} |`);
   L.push('', '## Over-caution', '', 'Abstain rate on images every model reads at least 90% correctly in baseline.', '', '| model | mode | abstain |', '|---|---|---|');
   for (const o of rep.overCaution) L.push(`| ${o.model} | ${o.mode} | ${pct(o.rate)} |`);
-  L.push('', '## Cost', '', '| model | mode | calls | spent | per 1,000 reads | median latency |', '|---|---|---|---|---|---|');
+  L.push('', '## Cost', '', 'Per mode, including any reads a guard reuses from other modes (so modes do not add up to total spend).', '', '| model | mode | images | spent | per 1,000 reads | median latency |', '|---|---|---|---|---|---|');
   for (const m of rep.money) L.push(`| ${m.model} | ${m.mode} | ${m.calls} | $${m.dollars.toFixed(2)} | $${m.perThousandReads.toFixed(2)} | ${(m.medianMs / 1000).toFixed(1)} s |`);
   return L.join('\n') + '\n';
 }

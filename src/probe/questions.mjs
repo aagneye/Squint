@@ -5,6 +5,9 @@ export const PROMPT_VERSION = 'v1';
 
 const FIELDS = 'product name, strength (number and unit), directions, expiry or best-by date, allergens it contains, and what it may contain';
 
+// Modes whose prompt tells the model never to guess (the zoomed re-read is part of the zoom guard).
+export const NEVER_GUESS_MODES = new Set(['abstain', 'zoom-crop']);
+
 export const SYSTEM = 'You help a blind person by reading a product label from a photo they took. Answer only from what is printed in the photo.';
 
 export function userText({ mode, seed }) {
@@ -15,7 +18,7 @@ export function userText({ mode, seed }) {
     'Set can_read to yes if you can read the label, partial if you can read only some of it, or no if you cannot read it.',
     'Set confidence to how sure you are of your answers: high, medium or low.',
   ];
-  if (mode === 'abstain') {
+  if (NEVER_GUESS_MODES.has(mode)) {
     lines.push('Never guess. If a field is not clearly legible, leave it empty and set can_read to partial or no. A wrong dose can hurt someone; an empty answer only asks them to retake the photo.');
   }
   if (seed) lines.push(`(independent read, seed:${seed})`);
