@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Squint</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface-1: #fcfcfb; --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b; --neutral: #898781;
+    --wash: rgba(11,11,11,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface-1: #1a1a19; --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --wash: rgba(255,255,255,0.05);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --wash: rgba(255,255,255,0.05);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text-primary); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1080px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 34px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 19px; margin: 0 0 4px; }
+  .lede { color: var(--text-secondary); max-width: 720px; margin: 6px 0 0; }
+  .note { color: var(--text-muted); font-size: 13px; }
+  section { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 20px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; color: var(--text-secondary); padding: 6px 12px; font: inherit; font-size: 14px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--wash); color: var(--text-primary); font-weight: 600; }
+  .seg button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+  select { font: inherit; font-size: 14px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); }
+  .slider { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 760px) { .slider { grid-template-columns: 1fr; } }
+  .shot { width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; border: 1px solid var(--border); background: var(--wash); object-fit: contain; display: block; }
+  input[type=range] { width: 100%; accent-color: var(--series-1); }
+  .say { font-size: 22px; font-weight: 600; margin: 4px 0 2px; overflow-wrap: anywhere; }
+  .fields { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
+  .fields li { display: flex; gap: 10px; align-items: baseline; }
+  .badge { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .fname { min-width: 92px; color: var(--text-secondary); font-size: 14px; }
+  .chart { width: 100%; height: auto; display: block; overflow: visible; }
+  .chart text { fill: var(--text-muted); font-size: 12px; }
+  .chart .lbl { fill: var(--text-primary); font-size: 13px; font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--text-secondary); }
+  .legend span { display: inline-flex; gap: 6px; align-items: center; }
+  .tip { position: fixed; pointer-events: none; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); display: none; z-index: 10; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); }
+  th { color: var(--text-secondary); font-weight: 600; }
+  td.num, th.num { text-align: right; }
+  details summary { cursor: pointer; color: var(--text-secondary); font-size: 14px; margin-top: 10px; }
+  .empty { color: var(--text-secondary); padding: 40px 0; text-align: center; }
+  .banner { background: var(--wash); border-radius: 8px; padding: 8px 12px; color: var(--text-secondary); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Squint</h1>
+    <p class="lede">Does your vision AI know when it can't read the label? Squint degrades medicine and food labels step by step and finds where reading turns into guessing. A blurry 25 mg bottle must get <em>"please retake the photo"</em>, never a confident wrong dose.</p>
+    <p class="note">All labels are synthetic. Squint tests reading, not treatment, and gives no medical advice.</p>
+    <p id="banner" class="banner" hidden></p>
+  </header>
+
+  <section aria-labelledby="h-slider">
+    <h2 id="h-slider">Blur the label, watch the answer</h2>
+    <div class="row">
+      <label for="sl-model" class="note">Model and mode</label>
+      <select id="sl-model"></select>
+    </div>
+    <div class="slider">
+      <div>
+        <img id="sl-img" class="shot" alt="">
+        <label for="sl-range" class="note" id="sl-level-label">Level 0</label>
+        <input id="sl-range" type="range" min="0" max="7" step="1" value="0">
+      </div>
+      <div aria-live="polite">
+        <div class="note">The label says</div>
+        <div id="sl-truth" class="say"></div>
+        <div class="note" style="margin-top:12px">The model says</div>
+        <div id="sl-said" class="say"></div>
+        <div id="sl-conf" class="note"></div>
+        <ul id="sl-fields" class="fields"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-boundary">
+    <h2 id="h-boundary">Where reading turns into guessing</h2>
+    <p class="note">Share of fields read correctly at each degradation level. The legibility boundary is where a line crosses 50%.</p>
+    <div class="row">
+      <div class="seg" id="b-cond" role="group" aria-label="Condition"></div>
+      <div class="seg" id="b-mode" role="group" aria-label="Mode"></div>
+    </div>
+    <div class="legend" id="b-legend"></div>
+    <svg id="b-chart" class="chart" viewBox="0 0 860 340" role="img" aria-labelledby="h-boundary"></svg>
+    <details><summary>Table view</summary><div id="b-table"></div></details>
+  </section>
+
+  <section aria-labelledby="h-guards">
+    <h2 id="h-guards">The fix: confident wrong answers, guards off and on</h2>
+    <p class="note">Share of answers with at least one confidently wrong name, strength or allergen list, on the hardest images (levels 5 to 7, all conditions).</p>
+    <div class="row"><div class="seg" id="g-model" role="group" aria-label="Model"></div></div>
+    <svg id="g-chart" class="chart" viewBox="0 0 860 260" role="img" aria-labelledby="h-guards"></svg>
+    <details><summary>Table view</summary><div id="g-table"></div></details>
+  </section>
+
+  <section aria-labelledby="h-cost">
+    <h2 id="h-cost">What it costs</h2>
+    <div id="cost"></div>
+  </section>
+</main>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script type="module">
+const params = new URLSearchParams(location.search);
+const run = params.get('run') === 'mock' ? '../out/mock/' : '../out/';
+const MODEL_COLOR = { 'muse-spark-1.3': 'var(--series-1)', 'muse-wonder-1.0': 'var(--series-2)', 'muse-spark-1.1': 'var(--series-3)' };
+const MODEL_NAME = { 'muse-spark-1.3': 'Muse Spark 1.3', 'muse-wonder-1.0': 'Muse Wonder', 'muse-spark-1.1': 'Muse Spark 1.1' };
+const MODE_NAME = { baseline: 'No guard', abstain: 'Never-guess prompt', consistency: 'Three reads', formulary: 'Formulary check', zoom: 'Locate and zoom', stack: 'All guards' };
+const OUTCOME = {
+  correct: { label: 'Correct', icon: '✓', color: 'var(--good)' },
+  wrong_confident: { label: 'Confidently wrong', icon: '✕', color: 'var(--critical)' },
+  wrong_hedged: { label: 'Wrong, but unsure', icon: '!', color: 'var(--warning)' },
+  abstain: { label: 'Asked to retake', icon: '○', color: 'var(--neutral)' },
+};
+const COND_NAME = { blur: 'Blur', dark: 'Low light', tilt: 'Tilt', glare: 'Glare', cover: 'Covered' };
+const pct = (x) => `${Math.round(100 * x)}%`;
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const tip = document.getElementById('tip');
+const showTip = (e, html) => { tip.innerHTML = html; tip.style.display = 'block'; tip.style.left = `${Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8)}px`; tip.style.top = `${e.clientY + 14}px`; };
+const hideTip = () => { tip.style.display = 'none'; };
+const svgEl = (tag, attrs = {}, text) => { const n = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (text !== undefined) n.textContent = text; return n; };
+
+function seg(container, options, current, onPick) {
+  container.innerHTML = '';
+  for (const [value, label] of options) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = label; b.setAttribute('aria-pressed', String(value === current));
+    b.onclick = () => onPick(value);
+    container.append(b);
+  }
+}
+
+let rep;
+try {
+  const res = await fetch(run + 'results.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error(res.status);
+  rep = await res.json();
+} catch {
+  document.querySelector('main').insertAdjacentHTML('beforeend', `<section><p class="empty">No results yet. Run <code>node src/cli.mjs all</code> then <code>node src/cli.mjs serve</code> and open this page through that server.</p></section>`);
+  throw new Error('no results');
+}
+if (run.includes('mock')) { const b = document.getElementById('banner'); b.hidden = false; b.textContent = 'Showing the offline MOCK run: these numbers come from a fake API and say nothing about real models.'; }
+
+const models = [...new Set(rep.rows.map((r) => r.model))].sort((a, b) => Object.keys(MODEL_COLOR).indexOf(a) - Object.keys(MODEL_COLOR).indexOf(b));
+const modes = Object.keys(MODE_NAME).filter((m) => rep.rows.some((r) => r.mode === m));
+const conds = Object.keys(COND_NAME).filter((c) => rep.rows.some((r) => r.cond === c));
+
+// ---- Slider ----
+const sl = { key: null, level: 0 };
+const frames = rep.slider.frames;
+const keys = [...new Set(frames.flatMap((f) => Object.keys(f.answers)))];
+const slSel = document.getElementById('sl-model');
+for (const k of keys) { const [m, mode] = k.split('|'); slSel.append(new Option(`${MODEL_NAME[m] ?? m}, ${MODE_NAME[mode] ?? mode}`, k)); }
+sl.key = keys.find((k) => k === 'muse-spark-1.3|baseline') ?? keys.find((k) => k.endsWith('|baseline')) ?? keys[0];
+slSel.value = sl.key;
+const range = document.getElementById('sl-range');
+range.max = Math.max(0, frames.length - 1);
+document.getElementById('sl-truth').textContent = rep.slider.truth ? `${rep.slider.truth.name} ${rep.slider.truth.strength}` : '';
+function drawSlider() {
+  const f = frames[sl.level];
+  if (!f) return;
+  const img = document.getElementById('sl-img');
+  img.src = run + f.image;
+  img.alt = `${rep.slider.truth?.name ?? 'Label'} at ${COND_NAME[rep.slider.cond] ?? rep.slider.cond} level ${f.level}`;
+  document.getElementById('sl-level-label').textContent = `${COND_NAME[rep.slider.cond] ?? rep.slider.cond} level ${f.level} of 7`;
+  const a = f.answers[sl.key];
+  const said = document.getElementById('sl-said');
+  const list = document.getElementById('sl-fields');
+  list.innerHTML = '';
+  if (!a) { said.textContent = 'Not run at this level'; document.getElementById('sl-conf').textContent = ''; return; }
+  said.textContent = a.can_read === 'no' || (!a.name && !a.strength) ? 'I can\'t read this. Please retake the photo.' : `${a.name || '?'} ${a.strength || '?'}`;
+  document.getElementById('sl-conf').textContent = `Says it can read the label: ${a.can_read}. Confidence: ${a.confidence}.`;
+  for (const fl of a.fields) {
+    const o = OUTCOME[fl.outcome];
+    list.insertAdjacentHTML('beforeend', `<li><span class="fname">${esc(fl.field.replace('_', ' '))}</span><span class="badge"><span class="dot" style="background:${o.color}"></span><span aria-hidden="true">${o.icon}</span>${o.label}</span></li>`);
+  }
+}
+range.oninput = () => { sl.level = Number(range.value); drawSlider(); };
+slSel.onchange = () => { sl.key = slSel.value; drawSlider(); };
+drawSlider();
+
+// ---- Boundary line chart ----
+const bState = { cond: conds[0], mode: modes.includes('baseline') ? 'baseline' : modes[0] };
+function drawBoundary() {
+  seg(document.getElementById('b-cond'), conds.map((c) => [c, COND_NAME[c]]), bState.cond, (v) => { bState.cond = v; drawBoundary(); });
+  seg(document.getElementById('b-mode'), modes.map((m) => [m, MODE_NAME[m]]), bState.mode, (v) => { bState.mode = v; drawBoundary(); });
+  const svg = document.getElementById('b-chart');
+  svg.innerHTML = '';
+  const W = 860, H = 340, L = 48, R = 140, T = 16, B = 40;
+  const levels = [...new Set(rep.rows.map((r) => r.level))].sort((a, b) => a - b);
+  const x = (l) => L + ((l - levels[0]) / Math.max(1, levels.at(-1) - levels[0])) * (W - L - R);
+  const y = (v) => T + (1 - v) * (H - T - B);
+  for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+    svg.append(svgEl('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: v === 0 ? 'var(--axis)' : 'var(--grid)', 'stroke-width': 1, 'stroke-dasharray': v === 0.5 ? '4 4' : '' }));
+    svg.append(svgEl('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, pct(v)));
+  }
+  svg.append(svgEl('text', { x: L + 6, y: y(0.5) - 6 }, '50%: the legibility boundary'));
+  for (const l of levels) svg.append(svgEl('text', { x: x(l), y: H - B + 18, 'text-anchor': 'middle' }, l));
+  svg.append(svgEl('text', { x: (L + W - R) / 2, y: H - 4, 'text-anchor': 'middle' }, `${COND_NAME[bState.cond]} level (0 = clean)`));
+  const legend = document.getElementById('b-legend');
+  legend.innerHTML = '';
+  const series = models.map((m) => ({ m, pts: rep.rows.filter((r) => r.model === m && r.mode === bState.mode && r.cond === bState.cond).sort((a, b) => a.level - b.level) })).filter((s) => s.pts.length);
+  const labelYs = [];
+  for (const s of series) {
+    const color = MODEL_COLOR[s.m] ?? 'var(--text-secondary)';
+    legend.insertAdjacentHTML('beforeend', `<span><span class="dot" style="background:${color}"></span>${esc(MODEL_NAME[s.m] ?? s.m)}</span>`);
+    svg.append(svgEl('path', { d: s.pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.level)},${y(p.rates.correct)}`).join(''), fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    for (const p of s.pts) svg.append(svgEl('circle', { cx: x(p.level), cy: y(p.rates.correct), r: 4, fill: color, stroke: 'var(--surface-1)', 'stroke-width': 2 }));
+    const last = s.pts.at(-1);
+    let ly = y(last.rates.correct) + 4;
+    while (labelYs.some((v) => Math.abs(v - ly) < 15)) ly += 15;
+    labelYs.push(ly);
+    svg.append(svgEl('text', { x: x(last.level) + 10, y: ly, class: 'lbl' }, MODEL_NAME[s.m] ?? s.m));
+  }
+  // crosshair + tooltip
+  const cross = svgEl('line', { y1: T, y2: H - B, stroke: 'var(--axis)', 'stroke-width': 1, visibility: 'hidden' });
+  svg.append(cross);
+  const hit = svgEl('rect', { x: L, y: T, width: W - L - R, height: H - T - B, fill: 'transparent' });
+  svg.append(hit);
+  hit.onmousemove = (e) => {
+    const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const lvl = levels.reduce((best, l) => (Math.abs(x(l) - p.x) < Math.abs(x(best) - p.x) ? l : best), levels[0]);
+    cross.setAttribute('x1', x(lvl)); cross.setAttribute('x2', x(lvl)); cross.setAttribute('visibility', 'visible');
+    const lines = series.map((s) => { const r = s.pts.find((q) => q.level === lvl); return r ? `<div><span class="dot" style="display:inline-block;background:${MODEL_COLOR[s.m]}"></span> ${esc(MODEL_NAME[s.m] ?? s.m)}: <b>${pct(r.rates.correct)}</b> correct, ${pct(r.rates.wrong_confident)} confidently wrong</div>` : ''; }).join('');
+    showTip(e, `<div class="note">${COND_NAME[bState.cond]} level ${lvl}</div>${lines}`);
+  };
+  hit.onmouseleave = () => { cross.setAttribute('visibility', 'hidden'); hideTip(); };
+  const rows = series.flatMap((s) => s.pts.map((p) => `<tr><td>${esc(MODEL_NAME[s.m] ?? s.m)}</td><td class="num">${p.level}</td><td class="num">${pct(p.rates.correct)}</td><td class="num">${pct(p.rates.wrong_confident)}</td><td class="num">${pct(p.rates.wrong_hedged)}</td><td class="num">${pct(p.rates.abstain)}</td></tr>`));
+  document.getElementById('b-table').innerHTML = `<table><thead><tr><th>Model</th><th class="num">Level</th><th class="num">Correct</th><th class="num">Confidently wrong</th><th class="num">Wrong, unsure</th><th class="num">Asked to retake</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+}
+drawBoundary();
+
+// ---- Guards bar chart ----
+const gState = { model: models[0] };
+function drawGuards() {
+  seg(document.getElementById('g-model'), models.map((m) => [m, MODEL_NAME[m] ?? m]), gState.model, (v) => { gState.model = v; drawGuards(); });
+  const svg = document.getElementById('g-chart');
+  svg.innerHTML = '';
+  const data = modes.map((mode) => {
+    const rs = rep.rows.filter((r) => r.model === gState.model && r.mode === mode && r.level >= 5);
+    const answers = rs.reduce((s, r) => s + r.answers, 0);
+    const unsafe = rs.reduce((s, r) => s + r.unsafeAnswers, 0);
+    const abstain = rs.reduce((s, r) => s + r.counts.abstain, 0) / Math.max(1, rs.reduce((s, r) => s + r.fields, 0));
+    return { mode, answers, rate: answers ? unsafe / answers : 0, abstain };
+  }).filter((d) => d.answers);
+  const H = Math.max(80, 28 + data.length * 38), W = 860, L = 170, R = 200, T = 8;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const max = Math.max(0.05, ...data.map((d) => d.rate));
+  const xs = (v) => L + (v / max) * (W - L - R);
+  data.forEach((d, i) => {
+    const yy = T + i * 38;
+    svg.append(svgEl('text', { x: L - 10, y: yy + 18, 'text-anchor': 'end', class: 'lbl' }, MODE_NAME[d.mode] ?? d.mode));
+    const w = Math.max(2, xs(d.rate) - L);
+    const bar = svgEl('path', { d: `M${L},${yy + 6}h${Math.max(0, w - 4)}a4,4 0 0 1 4,4v10a4,4 0 0 1 -4,4h${-Math.max(0, w - 4)}z`, fill: d.mode === 'baseline' ? 'var(--text-muted)' : 'var(--series-1)' });
+    svg.append(bar);
+    svg.append(svgEl('text', { x: L + w + 8, y: yy + 19 }, `${pct(d.rate)} unsafe · ${pct(d.abstain)} asked to retake`));
+    const hit = svgEl('rect', { x: 0, y: yy, width: W, height: 32, fill: 'transparent' });
+    hit.onmousemove = (e) => showTip(e, `<b>${esc(MODE_NAME[d.mode] ?? d.mode)}</b><div>${pct(d.rate)} of ${d.answers} hard answers were confidently wrong on name, strength or allergens</div><div class="note">${pct(d.abstain)} of fields left blank (asked to retake)</div>`);
+    hit.onmouseleave = hideTip;
+    svg.append(hit);
+  });
+  svg.append(svgEl('line', { x1: L, x2: L, y1: T, y2: H - 4, stroke: 'var(--axis)' }));
+  document.getElementById('g-table').innerHTML = `<table><thead><tr><th>Mode</th><th class="num">Hard answers</th><th class="num">Unsafe</th><th class="num">Asked to retake</th></tr></thead><tbody>${data.map((d) => `<tr><td>${esc(MODE_NAME[d.mode] ?? d.mode)}</td><td class="num">${d.answers}</td><td class="num">${pct(d.rate)}</td><td class="num">${pct(d.abstain)}</td></tr>`).join('')}</tbody></table>`;
+}
+drawGuards();
+
+// ---- Cost ----
+document.getElementById('cost').innerHTML = `<table><thead><tr><th>Model</th><th>Mode</th><th class="num">Images</th><th class="num">Spent</th><th class="num">Per 1,000 reads</th><th class="num">Median latency</th></tr></thead><tbody>${rep.money.map((m) => `<tr><td>${esc(MODEL_NAME[m.model] ?? m.model)}</td><td>${esc(MODE_NAME[m.mode] ?? m.mode)}</td><td class="num">${m.calls}</td><td class="num">$${m.dollars.toFixed(2)}</td><td class="num">$${m.perThousandReads.toFixed(2)}</td><td class="num">${(m.medianMs / 1000).toFixed(1)} s</td></tr>`).join('')}</tbody></table><p class="note">Guard modes include the reads they reuse, so rows do not add up to total spend.</p>`;
+</script>
+</body>
+</html>

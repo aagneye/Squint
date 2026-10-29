@@ -9,6 +9,7 @@ import { degradeAll, CONDITIONS, LEVELS, imagePath } from './degrade/ladder.mjs'
 import { planProbe, estimate, runProbe, MODELS, BASE_MODES } from './probe/probe.mjs';
 import { isMock } from './api/meta.mjs';
 import { loadRecords, buildReport, writeReport } from './report/report.mjs';
+import { startServer } from './serve.mjs';
 
 const HELP = `Squint: does your vision AI know when it can't read the label?
 
@@ -20,6 +21,7 @@ Commands
   probe      ask the model(s) to read the images  -> out/raw/ (cached; re-runs never re-bill)
   report     score every stored answer            -> out/results.json, out/summary.md, out/slider/
   all        forge + degrade + probe + report
+  serve      host the demo page on http://127.0.0.1:5173/web/ (--port N)
 
 Options
   --labels N|id,id   how many labels (spread across kinds) or exact ids   (default: all)
@@ -167,7 +169,14 @@ export async function cmdAll(sel, flags) {
   return cmdReport(sel, flags);
 }
 
-export const COMMANDS = { forge: cmdForge, degrade: cmdDegrade, probe: cmdProbe, report: cmdReport, score: cmdReport, all: cmdAll };
+export async function cmdServe(sel, flags) {
+  const port = Number(flags.port ?? 5173);
+  await startServer(port);
+  console.log(`demo page: http://127.0.0.1:${port}/web/   (offline mock run: http://127.0.0.1:${port}/web/?run=mock)  Ctrl+C to stop`);
+  return new Promise(() => {});
+}
+
+export const COMMANDS = { forge: cmdForge, degrade: cmdDegrade, probe: cmdProbe, report: cmdReport, score: cmdReport, all: cmdAll, serve: cmdServe };
 
 export async function main(argv) {
   const { command, flags } = parseArgs(argv);
